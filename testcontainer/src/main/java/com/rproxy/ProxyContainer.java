@@ -9,11 +9,17 @@ import java.util.stream.Stream;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.LogMessageWaitStrategy;
 
-import com.rproxy.RSocketProxyClient;
-
 import reactor.core.Disposable;
 
+/**
+ * Test container that starts remote proxy server and proxies traffic to localhost
+ * 
+ * @author azukovskij
+ *
+ */
 public class ProxyContainer extends GenericContainer<ProxyContainer> {
+    
+    private static final String DOCKER_IMAGE_NAME = "azukovskij/rproxy:1.0.0";
     
     private static final int PROXY_POT = 7878;
     private int maxConnections = 32;
@@ -21,13 +27,23 @@ public class ProxyContainer extends GenericContainer<ProxyContainer> {
     private List<Disposable> proxies;
 
     public ProxyContainer() {
-        super("proxy:latest");
+        super(DOCKER_IMAGE_NAME);
     }
     
+    /**
+     * Ports to listen on proxy server and to proxy to localhost
+     * 
+     * @param proxiedPorts port number list
+     */
     public void setProxiedPorts(List<Integer> proxiedPorts) {
         this.proxiedPorts = proxiedPorts;
     }
     
+    /**
+     * Maximum number of connections to allow
+     * 
+     * @param maxConnections
+     */
     public void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
     }
@@ -37,7 +53,7 @@ public class ProxyContainer extends GenericContainer<ProxyContainer> {
         var port = String.valueOf(7878);
         setPortBindings(Stream.concat(
                 getPortBindings().stream(), 
-                Stream.of(port, "8080:8080"))
+                Stream.of(port))
             .collect(Collectors.toList()));
         addEnv("HTTP_PORT", port);
         addEnv("MAX_CONNECTIONS", String.valueOf(maxConnections));
@@ -65,12 +81,4 @@ public class ProxyContainer extends GenericContainer<ProxyContainer> {
         super.stop();
     }
     
-    public static void main(String[] args) throws InterruptedException {
-        var c = new ProxyContainer();
-        c.setProxiedPorts(List.of(8080));
-        
-        c.start();
-        
-        Thread.currentThread().sleep(10000000);
-    }
 }
