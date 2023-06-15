@@ -7,13 +7,13 @@ RProxy is non-blocking TCP/IP proxy that is split into two parts - client and se
 this allows to project local host into other networks and make locally deployed services available in remote cluster, e.g. expose local host in docker or kubernetes environment. 
 
 ## Comand Line Usage
-Both server and client are packaged into a single [fat-jar](https://github.com/Azukovskij/rproxy/releases/tag/1.0.0), server can be started using `server` argument:
+Both server and client are packaged into a single [fat-jar](https://github.com/Azukovskij/rproxy/releases/tag/1.0.1), server can be started using `server` argument:
 ```
-java -jar rproxy-1.0.0.jar server
+java -jar rproxy-1.0.1.jar server
 ```
 and client using `client` argument respectively:
 ```
-java -jar rproxy-1.0.0.jar client --proxy http://{proxy-host}:7878 --ports 8080 8081
+java -jar rproxy-1.0.1.jar client --proxy http://{proxy-host}:7878 --ports 8080 8081
 ```
 
 Following command line options are supported:
