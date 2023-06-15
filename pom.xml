@@ -7,7 +7,7 @@
     <groupId>com.rproxy</groupId>
     <artifactId>rproxy-parent</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.0</version>
+    <version>1.0.0-SNAPSHOT</version>
 
     <modules>
         <module>rproxy-core</module>
