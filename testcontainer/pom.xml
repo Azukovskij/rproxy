@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.rproxy</groupId>
         <artifactId>rproxy-parent</artifactId>
-        <version>1.0.1</version>
+        <version>1.0.2-SNAPSHOT</version>
     </parent>
     <artifactId>testcontainer</artifactId>
     <packaging>jar</packaging>
