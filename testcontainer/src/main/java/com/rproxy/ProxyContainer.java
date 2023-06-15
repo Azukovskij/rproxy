@@ -29,6 +29,10 @@ public class ProxyContainer extends GenericContainer<ProxyContainer> {
     public ProxyContainer() {
         super(DOCKER_IMAGE_NAME);
     }
+
+    public ProxyContainer(String dockerImageName) {
+        super(dockerImageName);
+    }
     
     /**
      * Ports to listen on proxy server and to proxy to localhost
@@ -40,12 +44,34 @@ public class ProxyContainer extends GenericContainer<ProxyContainer> {
     }
     
     /**
+     * Ports to listen on proxy server and to proxy to localhost
+     * 
+     * @param proxiedPorts port number list
+     * @return container
+     */
+    public ProxyContainer withProxiedPorts(List<Integer> proxiedPorts) {
+        this.proxiedPorts = proxiedPorts;
+        return this;
+    }
+    
+    /**
      * Maximum number of connections to allow
      * 
-     * @param maxConnections
+     * @param maxConnections number of connections
      */
     public void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
+    }
+
+    /**
+     * Maximum number of connections to allow
+     * 
+     * @param maxConnections number of connections
+     * @return container
+     */
+    public ProxyContainer withMaxConnections(int maxConnections) {
+        this.maxConnections = maxConnections;
+        return this;
     }
     
     @Override
