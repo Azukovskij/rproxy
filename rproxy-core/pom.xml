@@ -8,9 +8,7 @@
         <artifactId>rproxy-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <groupId>com.rproxy</groupId>
     <artifactId>rproxy-core</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -41,6 +39,24 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
+        </dependency>
+        
+
+        <!-- test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.tomakehurst</groupId>
+            <artifactId>wiremock-jre8</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

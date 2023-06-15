@@ -1,10 +1,14 @@
 package com.rproxy;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,16 +17,20 @@ import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketServer;
+import io.rsocket.core.Resume;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
+import reactor.netty.DisposableServer;
 import reactor.netty.tcp.TcpServer;
 import reactor.pool.Pool;
 import reactor.pool.PoolBuilder;
+import reactor.util.retry.Retry;
 
 /**
  * Server part of the proxy, listens for ports requested by the {@link RSocketProxyClient}
@@ -34,37 +42,61 @@ import reactor.pool.PoolBuilder;
 public class RSocketProxyServer implements Disposable {
     
     private final Logger logger = LoggerFactory.getLogger(getClass());
+    private final Set<Subscription> subscriptions = ConcurrentHashMap.newKeySet();
     private final Map<Integer, NettyServer> servers = new ConcurrentHashMap<Integer, NettyServer>();
+    private final int port;
     private final int maxConnections;
-    private final Disposable disposable;
+    
 
     RSocketProxyServer(int port, int maxConnections) {
         this.maxConnections = maxConnections;
-        this.disposable = RSocketServer.create(
-                SocketAcceptor.forRequestChannel(inbound -> 
-                    Flux.create(sink -> 
-                        sink.onDispose(Flux.from(inbound)
-                            .subscribe(request -> receive(request, sink))))))
-            .payloadDecoder(PayloadDecoder.ZERO_COPY)
-            .bind(TcpServerTransport.create(port))
-            .doOnSubscribe(s -> logger.info("Started proxy on port {}", port))
-            .subscribe(Closeable::onClose);
+        this.port = port;
     }
     
+    /**
+     * Starts the server 
+     */
+    public Mono<CloseableChannel> start() {
+        return RSocketServer.create(
+            SocketAcceptor.forRequestChannel(inbound -> 
+                        Flux.create(sink -> 
+                            sink.onDispose(Flux.from(inbound)
+                                .doOnCancel(() -> disconnect(sink))
+                                .subscribe(request -> receive(request, sink), sink::error, sink::complete)))))
+                .resume(new Resume()
+                        .retry(Retry.backoff(100, Duration.ofMillis(10))))
+                .payloadDecoder(PayloadDecoder.ZERO_COPY)
+                .bind(TcpServerTransport.create(port))
+                .doOnSubscribe(s -> logger.info("Started proxy on port {}", port))
+                .doOnSubscribe(subscriptions::add)
+                .doOnNext(Closeable::onClose);
+    }
+
     private void receive(Payload request, FluxSink<Payload> inbound) {
         if (!request.hasMetadata()) {
             return;
         }
         var route = Route.deserialize(request.metadata());
-        servers.computeIfAbsent(route.getPort(), k -> new NettyServer(k, inbound))
+        servers.computeIfAbsent(route.getPort(), k -> createServer(k, inbound))
             .send(route, request.data());
+    }
+    
+    private void disconnect(FluxSink<Payload> sink) {
+        servers.values().removeIf(s -> s.listensOn(sink));
+        sink.complete();
+    }
+
+    // @VisibleForTesting
+    NettyServer createServer(int port, FluxSink<Payload> inbound) {
+        return new NettyServer(port, port, inbound);
     }
 
     @Override
     public void dispose() {
-        disposable.dispose();
+        subscriptions.forEach(Subscription::cancel);
         servers.forEach((k,v) -> v.dispose());
     }
+    
 
     /**
      * Serves TCP/IP incoming connections on proxy server side
@@ -76,16 +108,18 @@ public class RSocketProxyServer implements Disposable {
         
         private final Map<Route, FluxSink<ByteBuf>> channels = new ConcurrentHashMap<>();
         private final Pool<Route> routes;
-        private final Disposable disposable;
+        private final AtomicReference<DisposableServer> server = new AtomicReference<>();
+        private final FluxSink<Payload> inbound;
         
-        NettyServer(int port, FluxSink<Payload> inbound) {
+        NettyServer(int serverPort, int clientPort, FluxSink<Payload> inbound) {
+            this.inbound = inbound;
             var counter = new AtomicInteger();
             this.routes = PoolBuilder.<Route>from(Mono.fromCallable(() -> 
-                    new Route(port, counter.incrementAndGet() % maxConnections)))
+                    new Route(clientPort, counter.incrementAndGet() % maxConnections)))
                 .sizeBetween(0, maxConnections)
                 .buildPool();
-            this.disposable = TcpServer.create().port(port)   
-                .doOnBind(c -> logger.info("Listening for port {}", port))
+            TcpServer.create().port(serverPort)   
+                .doOnBind(c -> logger.info("Listening for port {}", serverPort))
                 .handle((in, out) -> routes.acquire()
                     .flatMap(ref -> out.send(Flux.create(outbound -> {
                             var route = ref.poolable(); 
@@ -96,7 +130,7 @@ public class RSocketProxyServer implements Disposable {
                         }))
                         .then(Mono.defer(ref::release)).then()))
                 .bind()
-                .subscribe();
+                .subscribe(server::set);
         }
         
         /**
@@ -107,9 +141,17 @@ public class RSocketProxyServer implements Disposable {
                 .ifPresent(sink -> sink.next(data));
         }
         
+        /**
+         * @return true if server lsitens on passed channel
+         */
+        boolean listensOn(FluxSink<Payload> inbound) {
+            return this.inbound == inbound;
+        }
+        
         @Override
         public void dispose() {
-            disposable.dispose();
+            Optional.ofNullable(server.get())
+                .ifPresent(DisposableServer::disposeNow);
         }
         
     }

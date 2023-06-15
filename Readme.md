@@ -29,7 +29,7 @@ Following command line options are supported:
 Self configuring [testcontainer](https://testcontainers.com) implementation is provided in [ProxyContainer.java](https://github.com/Azukovskij/rproxy/blob/main/testcontainer/src/main/java/com/rproxy/ProxyContainer.java) that uses [azukovskij/rproxy](https://hub.docker.com/repository/docker/azukovskij/rproxy/general) docker image and allows to connect back to the test from started testcontainer, e.g. 
 ```
 @Container
-public ProxyContainer redis = new ProxyContainer()
+public ProxyContainer container = new ProxyContainer()
     .withProxiedPorts(List.of(8080));
 ```
 will expose 8080 listened by test within the docker network.

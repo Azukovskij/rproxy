@@ -7,7 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -18,6 +18,8 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.TypeHandler;
 
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Main class for starting client/server from command line
@@ -44,7 +46,9 @@ public class Bootstrap {
             case "server":
                 try {
                     var opts = new ServerOptions(args);
-                    registerShutdownHook(new RSocketProxyServer(opts.getProxyPort(), opts.getMaxConnections()), latch::countDown);
+                    var server = new RSocketProxyServer(opts.getProxyPort(), opts.getMaxConnections());
+                    subscribe(server.start(), latch);
+                    registerShutdownHook(server, latch::countDown);
                     latch.await();
                 } catch (ParseException e) {
                     System.out.println(e.getMessage());
@@ -56,11 +60,14 @@ public class Bootstrap {
                     var opts = new ClientOptions(args);
                     var proxyAddress = opts.getProxyAddress();
                     var maxConnections = opts.getMaxConnections();
-                    registerShutdownHook(Stream.concat(
-                            opts.getLocalAdresses().stream()
-                                .map(addr -> new RSocketProxyClient(proxyAddress, addr, maxConnections)), 
-                            Stream.of((Disposable)latch::countDown))
-                        .toArray(Disposable[]::new));
+                    var clients = opts.getLocalAdresses().stream()
+                        .map(addr -> new RSocketProxyClient(proxyAddress, addr, maxConnections))
+                        .collect(Collectors.toList());
+                    subscribe(Flux.fromIterable(clients)
+                        .flatMap(RSocketProxyClient::connect)
+                        .then(), latch);
+                    registerShutdownHook(clients.toArray(Disposable[]::new));
+                    registerShutdownHook(latch::countDown);
                     latch.await();
                 } catch (ParseException e) {
                     System.out.println(e.getMessage());
@@ -69,6 +76,10 @@ public class Bootstrap {
                 break;
         }
 
+    }
+
+    private static void subscribe(Mono<?> start, CountDownLatch latch) {
+        start.subscribe(v -> {}, e -> latch.countDown(), latch::countDown);
     }
     
     private static void registerShutdownHook(Disposable... disposables) {
