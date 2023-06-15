@@ -21,7 +21,7 @@ import reactor.core.publisher.Flux;
  */
 public class ProxyContainer extends GenericContainer<ProxyContainer> {
     
-    private static final String DOCKER_IMAGE_NAME = "azukovskij/rproxy:1.0.0";
+    private static final String DOCKER_IMAGE_NAME = "azukovskij/rproxy:1.0.1";
     
     private static final int PROXY_POT = 7878;
     private final List<Disposable> disposables = new ArrayList<>();
