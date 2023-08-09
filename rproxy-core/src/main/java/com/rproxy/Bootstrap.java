@@ -79,7 +79,7 @@ public class Bootstrap {
     }
 
     private static void subscribe(Mono<?> start, CountDownLatch latch) {
-        start.subscribe(v -> {}, e -> latch.countDown(), latch::countDown);
+        start.subscribe(v -> {}, e -> latch.countDown());
     }
     
     private static void registerShutdownHook(Disposable... disposables) {

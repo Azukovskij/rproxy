@@ -82,7 +82,7 @@ public class RSocketProxyServer implements Disposable {
     }
     
     private void disconnect(FluxSink<Payload> sink) {
-        servers.values().removeIf(s -> s.listensOn(sink));
+        servers.values().removeIf(s -> s.disposeSink(sink));
         sink.complete();
     }
 
@@ -142,16 +142,20 @@ public class RSocketProxyServer implements Disposable {
         }
         
         /**
-         * @return true if server lsitens on passed channel
+         * @return true if server channel was disposed 
          */
-        boolean listensOn(FluxSink<Payload> inbound) {
-            return this.inbound == inbound;
+        boolean disposeSink(FluxSink<Payload> inbound) {
+            boolean listensOn = this.inbound == inbound;
+            if (listensOn) {
+                dispose();
+            }
+            return listensOn;
         }
         
         @Override
         public void dispose() {
             Optional.ofNullable(server.get())
-                .ifPresent(DisposableServer::disposeNow);
+                .ifPresent(DisposableServer::dispose);
         }
         
     }
